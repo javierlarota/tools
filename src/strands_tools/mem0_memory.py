@@ -208,6 +208,15 @@ class Mem0ServiceClient:
             logger.debug("Using FAISS backend (Mem0Memory with FAISS)")
             merged_config = self._append_faiss_config(config)
 
+        # Embedder override for OpenAI
+        if os.environ.get("MEM0_EMBEDDER_OPENAI_BASE_URL"):
+            if not os.environ.get("MEM0_EMBEDDER_OPENAI_API_KEY"):
+                raise RuntimeError(
+                    "MEM0_EMBEDDER_OPENAI_API_KEY must be set when MEM0_EMBEDDER_OPENAI_BASE_URL is provided."
+                )
+            logger.debug("Using OpenAI embedder")
+            merged_config = self._override_openai_embedder_config(merged_config)
+
         # Graph backend providers
 
         # Graph backend providers
@@ -335,6 +344,36 @@ class Mem0ServiceClient:
                 "path": "/tmp/mem0_384_faiss",
             },
         }
+        return merged_config
+
+    def _override_openai_embedder_config(self, config: Optional[Dict] = None) -> Dict:
+        """Update incoming configuration dictionary to include the configuration of openai embedder.
+
+        Args:
+            config: Optional configuration dictionary to override defaults.
+
+        Returns:
+            An initialized Mem0Memory instance configured for openai embedder.
+        """
+
+        # Prepare configuration
+        merged_config = self._merge_config(config)
+        merged_config["llm"]["config"].update(
+            {
+                "openai_base_url": os.environ["MEM0_EMBEDDER_OPENAI_BASE_URL"],
+                "api_key": os.environ["MEM0_EMBEDDER_OPENAI_API_KEY"],
+                "temperature": 0.1,
+                "max_tokens": 1500,
+            }
+        )
+
+        merged_config["embedder"]["config"].update(
+            {
+                "openai_base_url": os.environ["MEM0_EMBEDDER_OPENAI_BASE_URL"],
+                "api_key": os.environ["MEM0_EMBEDDER_OPENAI_API_KEY"],
+            }
+        )
+
         return merged_config
 
     def _append_neptune_analytics_graph_config(self, config: Dict) -> Dict:

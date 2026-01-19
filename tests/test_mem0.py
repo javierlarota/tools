@@ -548,3 +548,132 @@ def test_faiss_client(mock_mem0_memory, mock_tool):
     # Assertions
     assert result["status"] == "success"
     assert "Test memory content" in str(result["content"][0]["text"])
+
+
+# Tests for OpenAI embedder override functionality
+
+
+@patch.dict(os.environ, {"MEM0_EMBEDDER_OPENAI_BASE_URL": "https://api.openai.com/v1"})
+@patch("strands_tools.mem0_memory.Mem0Memory")
+def test_openai_embedder_missing_api_key(mock_mem0_memory):
+    """Test that RuntimeError is raised when MEM0_EMBEDDER_OPENAI_BASE_URL is set.
+
+    MEM0_EMBEDDER_OPENAI_API_KEY must also be set.
+    """
+    sys.modules["faiss"] = MagicMock()
+
+    with pytest.raises(
+        RuntimeError, match="MEM0_EMBEDDER_OPENAI_API_KEY must be set when MEM0_EMBEDDER_OPENAI_BASE_URL is provided."
+    ):
+        Mem0ServiceClient()
+
+
+@patch.dict(
+    os.environ,
+    {
+        "MEM0_EMBEDDER_OPENAI_BASE_URL": "https://api.openai.com/v1",
+        "MEM0_EMBEDDER_OPENAI_API_KEY": "test-api-key",
+    },
+)
+@patch("strands_tools.mem0_memory.Mem0Memory")
+def test_openai_embedder_with_api_key(mock_mem0_memory):
+    """Test that client initializes successfully.
+
+    Both MEM0_EMBEDDER_OPENAI_BASE_URL and MEM0_EMBEDDER_OPENAI_API_KEY must be set.
+    """
+    sys.modules["faiss"] = MagicMock()
+    mock_client = MagicMock()
+    mock_mem0_memory.from_config.return_value = mock_client
+
+    Mem0ServiceClient()
+
+    # Verify that from_config was called
+    assert mock_mem0_memory.from_config.called
+    # Get the config that was passed
+    call_args = mock_mem0_memory.from_config.call_args
+    config = call_args[1]["config_dict"]
+
+    # Verify OpenAI configuration was applied
+    assert "llm" in config
+    assert "config" in config["llm"]
+    assert config["llm"]["config"]["openai_base_url"] == "https://api.openai.com/v1"
+    assert config["llm"]["config"]["api_key"] == "test-api-key"
+    assert config["llm"]["config"]["temperature"] == 0.1
+    assert config["llm"]["config"]["max_tokens"] == 1500
+
+    assert "embedder" in config
+    assert "config" in config["embedder"]
+    assert config["embedder"]["config"]["openai_base_url"] == "https://api.openai.com/v1"
+    assert config["embedder"]["config"]["api_key"] == "test-api-key"
+
+
+@patch("strands_tools.mem0_memory.Mem0Memory")
+def test_override_openai_embedder_config(mock_mem0_memory):
+    """Test the _override_openai_embedder_config method directly."""
+    sys.modules["faiss"] = MagicMock()
+
+    with patch.dict(
+        os.environ,
+        {
+            "MEM0_EMBEDDER_OPENAI_BASE_URL": "https://custom.openai.com/v1",
+            "MEM0_EMBEDDER_OPENAI_API_KEY": "custom-key",
+        },
+    ):
+        client = Mem0ServiceClient()
+
+        # Create a test config
+        test_config = {
+            "llm": {"provider": "test", "config": {"model": "test-model"}},
+            "embedder": {"provider": "test", "config": {"model": "test-embedder"}},
+        }
+
+        # Call the method
+        result = client._override_openai_embedder_config(test_config)
+
+        # Verify the result
+        assert result["llm"]["config"]["openai_base_url"] == "https://custom.openai.com/v1"
+        assert result["llm"]["config"]["api_key"] == "custom-key"
+        assert result["llm"]["config"]["temperature"] == 0.1
+        assert result["llm"]["config"]["max_tokens"] == 1500
+
+        assert result["embedder"]["config"]["openai_base_url"] == "https://custom.openai.com/v1"
+        assert result["embedder"]["config"]["api_key"] == "custom-key"
+
+
+@patch.dict(
+    os.environ,
+    {
+        "MEM0_EMBEDDER_OPENAI_BASE_URL": "https://api.openai.com/v1",
+        "MEM0_EMBEDDER_OPENAI_API_KEY": "test-key",
+        "OPENSEARCH_HOST": "test.opensearch.amazonaws.com",
+    },
+)
+@patch("strands_tools.mem0_memory.Mem0Memory")
+@patch("boto3.Session")
+def test_openai_embedder_with_opensearch(mock_session, mock_mem0_memory):
+    """Test that OpenAI embedder override works with OpenSearch backend."""
+    # Mock session and credentials
+    mock_credentials = MagicMock()
+    mock_credentials.access_key = "test-access-key"
+    mock_credentials.secret_key = "test-secret-key"
+    mock_session.return_value.get_credentials.return_value = mock_credentials
+
+    mock_client = MagicMock()
+    mock_mem0_memory.from_config.return_value = mock_client
+
+    Mem0ServiceClient()
+
+    # Verify that from_config was called with OpenSearch and OpenAI config
+    assert mock_mem0_memory.from_config.called
+    call_args = mock_mem0_memory.from_config.call_args
+    config = call_args[1]["config_dict"]
+
+    # Verify OpenSearch config exists
+    assert "vector_store" in config
+    assert config["vector_store"]["provider"] == "opensearch"
+
+    # Verify OpenAI override was applied
+    assert config["llm"]["config"]["openai_base_url"] == "https://api.openai.com/v1"
+    assert config["llm"]["config"]["api_key"] == "test-key"
+    assert config["embedder"]["config"]["openai_base_url"] == "https://api.openai.com/v1"
+    assert config["embedder"]["config"]["api_key"] == "test-key"
