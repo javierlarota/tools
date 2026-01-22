@@ -32,6 +32,13 @@
   </p>
 </div>
 
+> ⚠️ This is a fork of https://github.com/strands-agents/tools.
+> 
+> Changes:
+> - Added PostgreSQL / pgvector support for Mem0
+> - Added support for custom embedders
+
+
 Strands Agents Tools is a community-driven project that provides a powerful set of tools for your agents to use. It bridges the gap between large language models and practical applications by offering ready-to-use tools for file operations, system execution, API interactions, mathematical operations, and more.
 
 ## ✨ Features

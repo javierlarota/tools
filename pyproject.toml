@@ -3,13 +3,13 @@ requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
-name = "strands-agents-tools"
+name = "strands-agents-tools-pgvector"
 dynamic = ["version"]
-description = "A collection of specialized tools for Strands Agents"
+description = "Fork of strands-agents/tools with pgvector suppor"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
-authors = [{ name = "AWS", email = "opensource@amazon.com" }]
+authors = [{ name = "AWS", email = "opensource@amazon.com" },{ name = "javier", email = "opensource@amazon.com" }]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
